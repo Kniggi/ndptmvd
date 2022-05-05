@@ -9,7 +9,8 @@ import numpy as np
 # internal imports
 import data
 import models
-
+import losses
+import cv2
 # -----------------------------------------------------------
 # CMD LINE SETTINGS
 
@@ -83,8 +84,57 @@ if __name__ == "__main__":
             video[args.batch_size*idx:args.batch_size*idx+p.size(0)] = frame.cpu().numpy()
             # write images to disk?
             if args.images:
-                img = torch.cat((x, p, y), dim=-1) if args.cmp else p
-                data.write([f'{name}/{name}_{args.batch_size*idx+j:06}.{args.format}' for j in range(frame.size(0))], img.cpu().numpy())
+                # img = torch.cat((x, p, y), dim=-1) if args.cmp else p
+                #prediction
+                img_pred = p
+                data.write([f'{name}/{name}_pred{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], img_pred.cpu().numpy())
+                #target
+                img_target = y
+                data.write([f'{name}/{name}_target{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], img_target.cpu().numpy())
+                #input
+                img_input = x
+                data.write([f'{name}/{name}_input{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], img_input.cpu().numpy())
+                # metrics
+                #color_val_difference
+                diff_red = np.abs(img_target.cpu().numpy()[0,0,...]-img_pred.cpu().numpy()[0,0,...])
+                diff_green = np.abs(img_target.cpu().numpy()[0,1,...]-img_pred.cpu().numpy()[0,1,...])
+                diff_blue = np.abs(img_target.cpu().numpy()[0,2,...]-img_pred.cpu().numpy()[0,2,...])
+                f = open(f'{name}/{name}col_diff.txt', "w")
+                f.write(f'Red:{np.mean(diff_red)} Green:{np.mean(diff_green)} Blue:{np.mean(diff_blue)}')
+                f.close()
+                mse_input_target = 0
+                ssim_input_target = 0
+                mse_pred_target = 0
+                ssim_pred_target = 0
+                # frequency domain images
+                rgb_weights = [0.2989, 0.5870, 0.1140]
+                grayscale = cv2.cvtColor(img_pred.cpu().permute(0,2,3,1).numpy()[0], cv2.COLOR_RGB2GRAY)[np.newaxis,...]
+                f_pred = np.fft.fft2(grayscale)
+                magnitude_spectrum_pred = 20* np.log(np.abs(np.fft.fftshift(f_pred)))
+                data.write([f'{name}/{name}_pred_frequency_spectrum{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], magnitude_spectrum_pred[:,np.newaxis,...],1)
+                grayscale = cv2.cvtColor(img_input.cpu().permute(0,2,3,1).numpy()[0], cv2.COLOR_RGB2GRAY)[np.newaxis,...]
+                f_input= np.fft.fft2(grayscale)
+                magnitude_spectrum_input = 20* np.log(np.abs(np.fft.fftshift(f_input)))
+                data.write([f'{name}/{name}_input_frequency_spectrum{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], magnitude_spectrum_input[:,np.newaxis,...],1)
+                grayscale = cv2.cvtColor(img_target.cpu().permute(0,2,3,1).numpy()[0], cv2.COLOR_RGB2GRAY)[np.newaxis,...]
+                f_target = np.fft.fft2(grayscale)
+                magnitude_spectrum_target = 20* np.log(np.abs(np.fft.fftshift(f_target)))
+                data.write([f'{name}/{name}_target_frequency_spectrum{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], magnitude_spectrum_target[:,np.newaxis,...],1)
+                for j in range(frame.size(0)):
+                    mse_input_target += losses.mse(img_input, img_target).item()
+                    ssim_input_target += losses.ssim(img_input, img_target).item()
+
+                    mse_pred_target += losses.mse(img_pred, img_target).item()
+                    ssim_pred_target += losses.ssim(img_pred, img_target).item()
+                mse_input_target_avg = mse_input_target / len(range(frame.size(0)))
+                ssim_input_target_avg = ssim_input_target / len(range(frame.size(0)))
+
+                mse_pred_target_avg = mse_pred_target / len(range(frame.size(0)))
+                ssim_pred_target_avg = ssim_pred_target / len(range(frame.size(0)))
+                f = open(f'{name}/{name}_metrics.txt', "w")
+                f.write(f' Input/Target: MSE: {mse_input_target_avg} SSIM: {ssim_input_target_avg}')
+                f.write(f' Prediction/Target: MSE: {mse_pred_target_avg} SSIM: {ssim_pred_target_avg}')
+                f.close()
             tq.update(args.batch_size)
         tq.close()
 

@@ -7,6 +7,9 @@ def ssim(img1, img2):
 
 def psnr(img1, img2):
     return 20 * torch.log10(torch.tensor(1, dtype=torch.float32, device=img1.get_device())) - 10 * torch.log10(F.mse_loss(img1, img2))
+def mse(img1, img2):
+    return F.mse_loss(img1, img2)
+
 
 def spec_mask(x):
     size = 11 # px

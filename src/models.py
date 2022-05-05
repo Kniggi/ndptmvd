@@ -3,10 +3,11 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import data
 
 # -----------------------------------------------------------
 # autoencoder modules
-
+encoder_iterator=0;
 class Encoder(nn.Module):
     def __init__(self, f_in, f_out):
         super(Encoder, self).__init__()
@@ -15,8 +16,13 @@ class Encoder(nn.Module):
     def forward(self, x):
         skip = x
         x = F.leaky_relu(self.conv(x), negative_slope=0.1)
+        global encoder_iterator 
+      #  data.write(f'{encoder_iterator}encodeconv1.hdr', x.cpu().numpy()[0])
+       
+        encoder_iterator= encoder_iterator +1
         return F.max_pool2d(x, kernel_size=2), skip
-
+        
+decoder_iterator=0;
 class Decoder(nn.Module):
     def __init__(self, f_in, f_out):
         super(Decoder, self).__init__()
@@ -27,7 +33,14 @@ class Decoder(nn.Module):
         x = F.interpolate(x, size=skip.size()[-2:])
         x = torch.cat((x, skip), dim=-3)
         x = F.leaky_relu(self.conv1(x), negative_slope=0.1)
+        global decoder_iterator
+      #  data.write(f'{decoder_iterator}decodeconv1.hdr', x.cpu().numpy()[0])
+        
         x = F.leaky_relu(self.conv2(x), negative_slope=0.1)
+       
+      #  data.write(f'{decoder_iterator}decodeconv2.hdr', x.cpu().numpy()[0])
+        
+        decoder_iterator = decoder_iterator + 1
         return x
 
 class Autoencoder(nn.Module):
@@ -79,7 +92,10 @@ class AutoencoderDualF24(nn.Module):
     def forward(self, x):
         direct = self.aec_direct(x[..., 0:15, :, :])
         indirect = self.aec_indirect(torch.cat((x[..., 0:3, :, :], direct, x[..., 15:24, :, :]), dim=-3))
+       # data.write(f'direct.hdr', direct.cpu().numpy()[0])
+       # data.write(f'indirect.hdr', direct.cpu().numpy()[0])
         x = self.output(torch.cat((direct * 2 - 1, indirect * 2 - 1), dim=-3)) * 0.5 + 0.5
+      #  data.write(f'output.hdr', x.cpu().numpy()[0])
         return x
 
 class AutoencoderDualF24Big(nn.Module):

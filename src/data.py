@@ -8,7 +8,7 @@ import hashlib
 import tempfile
 import numpy as np
 from multiprocessing.pool import ThreadPool
-
+import cv2
 # -----------------------------------------------------------
 # setup
 
@@ -104,12 +104,12 @@ def preprocess_image(x):
         raise ValueError('Unkown image data type')
     # clip and gamma adjust
     x = np.clip(x, 0, 1)
-    x[..., 0:3, :, :] = np.square(x[..., 0:3, :, :])
+    # x[..., 0:3, :, :] = np.square(x[..., 0:3, :, :])
     return x
 
 def postprocess_image(x):
     # gamma adjust
-    x[..., 0:3, :, :] = np.sqrt(np.clip(x[..., 0:3, :, :], 0, 1))
+     # x[..., 0:3, :, :] = np.sqrt(np.clip(x[..., 0:3, :, :], 0, 1))
     # to uint8
     if x.dtype == 'uint8':
         return np.clip(x, 0, 255)
@@ -124,7 +124,11 @@ def load_image(filename):
 
 def write_image(filename, image, channels=3):
     """ write rgb image (numpy array of floats in [0, 1] with shape (c, h, w)) to disk """
-    imageio.imwrite(filename, np.transpose(postprocess_image(image[0:channels]), [1, 2, 0]))
+    if channels==3:
+        image = cv2.cvtColor(np.transpose(image[0:channels], [1, 2, 0]),cv2.COLOR_RGB2BGR)
+        cv2.imwrite(filename, image)
+    else:
+        cv2.imwrite(filename, np.transpose(image[0:channels], [1, 2, 0]))
     print(f'{filename} written.')
 
 def write(filenames, images, channels=3):
@@ -187,7 +191,7 @@ def make_dataset(directory, load_features=True, key='.hdr'):
     filename = cache_path(directory, '.h5')
     if not os.path.isfile(filename):
         print(f'Building dataset from {directory} -> {filename} (this may take a while)...')
-        with h5py.File(filename, 'w') as f:
+        with h5py.File(filename, 'w',rdcc_nbytes=0) as f:
             files = glob_directory_recursive(directory, key=key, filter_feature_maps=True)
             assert len(files) > 0, "Dataset is empty!"
             # load single image to determine shape
@@ -207,7 +211,7 @@ def make_dataset_pos(directory, shape, key='.dat'):
     filename = cache_path(directory, '_pos.h5')
     if not os.path.isfile(filename):
         print(f'Building pos dataset from {directory} -> {filename} (this may take a while)...')
-        with h5py.File(filename, 'w') as f:
+        with h5py.File(filename, 'w',rdcc_nbytes=0) as f:
             files = glob_directory_recursive(directory, key=key, filter_feature_maps=False)
             assert len(files) > 0, "Dataset is empty!"
             # load single image to determine shape
