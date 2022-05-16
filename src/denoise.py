@@ -5,12 +5,14 @@ import tqdm
 import torch
 import argparse
 import imageio_ffmpeg
+from matplotlib import pyplot as plt
 import numpy as np
 # internal imports
 import data
 import models
 import losses
 import cv2
+os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
 # -----------------------------------------------------------
 # CMD LINE SETTINGS
 
@@ -111,15 +113,15 @@ if __name__ == "__main__":
                 grayscale = cv2.cvtColor(img_pred.cpu().permute(0,2,3,1).numpy()[0], cv2.COLOR_RGB2GRAY)[np.newaxis,...]
                 f_pred = np.fft.fft2(grayscale)
                 magnitude_spectrum_pred = 20* np.log(np.abs(np.fft.fftshift(f_pred)))
-                data.write([f'{name}/{name}_pred_frequency_spectrum{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], magnitude_spectrum_pred[:,np.newaxis,...],1)
+                data.write([f'{name}/{name}_pred_frequency_spectrum{args.batch_size*idx+j:06}.jpg' for j in range(frame.size(0))], magnitude_spectrum_pred[:,np.newaxis,...],1)
                 grayscale = cv2.cvtColor(img_input.cpu().permute(0,2,3,1).numpy()[0], cv2.COLOR_RGB2GRAY)[np.newaxis,...]
                 f_input= np.fft.fft2(grayscale)
                 magnitude_spectrum_input = 20* np.log(np.abs(np.fft.fftshift(f_input)))
-                data.write([f'{name}/{name}_input_frequency_spectrum{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], magnitude_spectrum_input[:,np.newaxis,...],1)
+                data.write([f'{name}/{name}_input_frequency_spectrum{args.batch_size*idx+j:06}.jpg' for j in range(frame.size(0))], magnitude_spectrum_input[:,np.newaxis,...],1)
                 grayscale = cv2.cvtColor(img_target.cpu().permute(0,2,3,1).numpy()[0], cv2.COLOR_RGB2GRAY)[np.newaxis,...]
                 f_target = np.fft.fft2(grayscale)
                 magnitude_spectrum_target = 20* np.log(np.abs(np.fft.fftshift(f_target)))
-                data.write([f'{name}/{name}_target_frequency_spectrum{args.batch_size*idx+j:06}.hdr' for j in range(frame.size(0))], magnitude_spectrum_target[:,np.newaxis,...],1)
+                data.write([f'{name}/{name}_target_frequency_spectrum{args.batch_size*idx+j:06}.jpg' for j in range(frame.size(0))], magnitude_spectrum_target[:,np.newaxis,...],1)
                 for j in range(frame.size(0)):
                     mse_input_target += losses.mse(img_input, img_target).item()
                     ssim_input_target += losses.ssim(img_input, img_target).item()
@@ -135,6 +137,40 @@ if __name__ == "__main__":
                 f.write(f' Input/Target: MSE: {mse_input_target_avg} SSIM: {ssim_input_target_avg}')
                 f.write(f' Prediction/Target: MSE: {mse_pred_target_avg} SSIM: {ssim_pred_target_avg}')
                 f.close()
+
+                fig = plt.figure(figsize=((512*3)/80, (512*2)/80))
+                rows = 3
+                columns = 3
+                fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=None)
+                fig.add_subplot(rows, columns, 1)
+                plt.imshow(img_input.cpu().permute(0,2,3,1).numpy()[0])
+                plt.axis('off')
+                plt.title("Input")
+                fig.add_subplot(rows, columns, 2)
+                plt.imshow(img_pred.cpu().permute(0,2,3,1).numpy()[0])
+                plt.axis('off')
+                plt.title("Prediction")
+                fig.add_subplot(rows, columns, 3)
+                plt.imshow(img_target.cpu().permute(0,2,3,1).numpy()[0])
+                plt.axis('off')
+                plt.title("Target")
+
+                fig.add_subplot(rows, columns, 4)
+                plt.imshow(magnitude_spectrum_input[0],cmap='gray')
+                plt.axis('off')
+                plt.title("Input Frequency")
+                fig.add_subplot(rows, columns, 5)
+                plt.imshow( magnitude_spectrum_pred[0],cmap='gray')
+                plt.axis('off')
+                plt.title("Prediction Frequency")
+
+                fig.add_subplot(rows, columns, 6)
+                plt.imshow(magnitude_spectrum_target[0],cmap='gray')
+                plt.axis('off')
+                plt.title("Target Frequency")
+                plt.tight_layout()
+
+                plt.savefig([f'{name}/{name}_plot{args.batch_size*idx+j:06}.jpg' for j in range(frame.size(0))][0], bbox_inches='tight', pad_inches=0, dpi=500, pil_kwargs={'quality':95})
             tq.update(args.batch_size)
         tq.close()
 
